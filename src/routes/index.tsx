@@ -91,8 +91,11 @@ function Index() {
   const [uiState, setUiState] = useState<UiState>("input");
   const [result, setResult] = useState<DemoResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [promptTouched, setPromptTouched] = useState(false);
+  const [responseTouched, setResponseTouched] = useState(false);
 
   const resultRef = useRef<HTMLDivElement>(null);
+  const scopeRef = useRef<HTMLDivElement>(null);
   const processingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -101,20 +104,57 @@ function Index() {
     };
   }, []);
 
+  const promptTrimmedLen = prompt.trim().length;
+  const responseTrimmedLen = response.trim().length;
+  const promptOver = prompt.length > LIMITS.prompt;
+  const responseOver = response.length > LIMITS.response;
+  const concernOver = concern.length > LIMITS.concern;
+  const anyOverLimit = promptOver || responseOver || concernOver;
+
+  const promptError =
+    promptTouched && promptTrimmedLen === 0
+      ? "Please share what you asked the AI."
+      : promptOver
+        ? `Please shorten this to ${LIMITS.prompt.toLocaleString()} characters or fewer.`
+        : null;
+  const responseError =
+    responseTouched && responseTrimmedLen === 0
+      ? "Please paste what the AI said."
+      : responseOver
+        ? `Please shorten this to ${LIMITS.response.toLocaleString()} characters or fewer.`
+        : null;
+  const concernError = concernOver
+    ? `Please shorten this to ${LIMITS.concern.toLocaleString()} characters or fewer.`
+    : null;
+
   const canAnalyze = useMemo(
-    () => prompt.trim().length > 0 && response.trim().length > 0 && uiState !== "processing",
-    [prompt, response, uiState],
+    () =>
+      promptTrimmedLen > 0 &&
+      responseTrimmedLen > 0 &&
+      !anyOverLimit &&
+      uiState !== "processing",
+    [promptTrimmedLen, responseTrimmedLen, anyOverLimit, uiState],
   );
 
   useEffect(() => {
     if (uiState === "result" && resultRef.current) {
       resultRef.current.focus();
     }
+    if (uiState === "scope_blocked" && scopeRef.current) {
+      scopeRef.current.focus();
+    }
   }, [uiState]);
 
   function handleAnalyze(e: React.FormEvent) {
     e.preventDefault();
+    setPromptTouched(true);
+    setResponseTouched(true);
     if (!canAnalyze) return;
+    if (isOutOfScope(prompt, response, concern)) {
+      setResult(null);
+      setUiState("scope_blocked");
+      return;
+    }
     setUiState("processing");
     setResult(null);
     processingTimer.current = setTimeout(() => {
@@ -123,27 +163,29 @@ function Index() {
     }, 900);
   }
 
-  function handleClearForm() {
+  function resetAll() {
     if (processingTimer.current) clearTimeout(processingTimer.current);
     setPrompt("");
     setResponse("");
     setConcern("");
     setResult(null);
+    setPromptTouched(false);
+    setResponseTouched(false);
     setUiState("input");
+  }
+
+  function handleClearForm() {
+    resetAll();
   }
 
   function handleAnalyzeAnother() {
-    if (processingTimer.current) clearTimeout(processingTimer.current);
-    setPrompt("");
-    setResponse("");
-    setConcern("");
-    setResult(null);
-    setUiState("input");
+    resetAll();
   }
 
   function handleClearSession() {
-    handleClearForm();
+    resetAll();
   }
+
 
   async function handleCopyResult() {
     if (!result) return;
