@@ -113,9 +113,9 @@ export const analyzeSubmission = createServerFn({ method: "POST" })
       .join("\n");
 
     try {
-      const { experimental_output: output } = await generateText({
+      const { output } = await generateText({
         model,
-        experimental_output: Output.object({ schema: ModelOutputSchema }),
+        output: Output.object({ schema: ModelOutputSchema }),
         system: SYSTEM_PROMPT,
         prompt: userPrompt,
       });
