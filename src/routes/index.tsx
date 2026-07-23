@@ -34,7 +34,7 @@ const LIMITS = {
   concern: 1000,
 } as const;
 
-type UiState = "input" | "processing" | "result";
+type UiState = "input" | "processing" | "result" | "scope_blocked";
 
 type DemoResult = {
   whatMayHaveHappened: string;
@@ -43,6 +43,29 @@ type DemoResult = {
   betterNextPrompt?: string;
   whatToNoticeNextTime: string;
 };
+
+const SCOPE_BLOCK_MESSAGE =
+  "This prototype is designed for learning-related AI interactions and cannot responsibly evaluate this situation. Do not rely on it for medical, legal, financial, crisis, safety, or disciplinary guidance. Consider contacting an appropriate qualified person or emergency service.";
+
+// Deterministic client-side scope screen. Intentionally conservative: matches
+// obvious high-stakes phrasing only. Not a substitute for server-side checks.
+const SCOPE_PATTERNS: RegExp[] = [
+  // medical
+  /\b(diagnos(e|is|ed|ing)|prescrib(e|ed|ing)|dosage|dose of|mg\/kg|symptoms? of|treat(ment)? for|medication|prognosis|is (this|it) cancer|chest pain|overdose)\b/i,
+  // legal
+  /\b(legal advice|sue|lawsuit|plead guilty|custody|restraining order|deportation|my lawyer|criminal charge|is (this|it) legal|tenant rights)\b/i,
+  // financial
+  /\b(financial advice|invest(ing)? in|should i buy .* stock|tax advice|file (my|for) bankruptcy|mortgage advice|retirement plan|which stock|crypto to buy)\b/i,
+  // crisis / self-harm / safety
+  /\b(suicid(e|al)|kill myself|end my life|self[- ]harm|hurt myself|want to die|overdose|emergency|call 911|in danger|being abused|domestic violence|someone is (hurting|threatening) me)\b/i,
+  // disciplinary
+  /\b(academic (integrity|misconduct)|honor code|expelled|expulsion|disciplinary (hearing|action|committee)|title ix|plagiarism hearing|suspended from school)\b/i,
+];
+
+function isOutOfScope(...texts: string[]): boolean {
+  const joined = texts.join("\n").toLowerCase();
+  return SCOPE_PATTERNS.some((re) => re.test(joined));
+}
 
 // Placeholder demonstration data (fabricated-citation example).
 // `betterNextPrompt` is intentionally omitted here because this example routes to
