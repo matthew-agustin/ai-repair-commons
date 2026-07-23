@@ -34,7 +34,7 @@ const LIMITS = {
   concern: 1000,
 } as const;
 
-type UiState = "input" | "processing" | "result";
+type UiState = "input" | "processing" | "result" | "scope_blocked";
 
 type DemoResult = {
   whatMayHaveHappened: string;
@@ -43,6 +43,29 @@ type DemoResult = {
   betterNextPrompt?: string;
   whatToNoticeNextTime: string;
 };
+
+const SCOPE_BLOCK_MESSAGE =
+  "This prototype is designed for learning-related AI interactions and cannot responsibly evaluate this situation. Do not rely on it for medical, legal, financial, crisis, safety, or disciplinary guidance. Consider contacting an appropriate qualified person or emergency service.";
+
+// Deterministic client-side scope screen. Intentionally conservative: matches
+// obvious high-stakes phrasing only. Not a substitute for server-side checks.
+const SCOPE_PATTERNS: RegExp[] = [
+  // medical
+  /\b(diagnos(e|is|ed|ing)|prescrib(e|ed|ing)|dosage|dose of|mg\/kg|symptoms? of|treat(ment)? for|medication|prognosis|is (this|it) cancer|chest pain|overdose)\b/i,
+  // legal
+  /\b(legal advice|sue|lawsuit|plead guilty|custody|restraining order|deportation|my lawyer|criminal charge|is (this|it) legal|tenant rights)\b/i,
+  // financial
+  /\b(financial advice|invest(ing)? in|should i buy .* stock|tax advice|file (my|for) bankruptcy|mortgage advice|retirement plan|which stock|crypto to buy)\b/i,
+  // crisis / self-harm / safety
+  /\b(suicid(e|al)|kill myself|end my life|self[- ]harm|hurt myself|want to die|overdose|emergency|call 911|in danger|being abused|domestic violence|someone is (hurting|threatening) me)\b/i,
+  // disciplinary
+  /\b(academic (integrity|misconduct)|honor code|expelled|expulsion|disciplinary (hearing|action|committee)|title ix|plagiarism hearing|suspended from school)\b/i,
+];
+
+function isOutOfScope(...texts: string[]): boolean {
+  const joined = texts.join("\n").toLowerCase();
+  return SCOPE_PATTERNS.some((re) => re.test(joined));
+}
 
 // Placeholder demonstration data (fabricated-citation example).
 // `betterNextPrompt` is intentionally omitted here because this example routes to
@@ -68,8 +91,11 @@ function Index() {
   const [uiState, setUiState] = useState<UiState>("input");
   const [result, setResult] = useState<DemoResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [promptTouched, setPromptTouched] = useState(false);
+  const [responseTouched, setResponseTouched] = useState(false);
 
   const resultRef = useRef<HTMLDivElement>(null);
+  const scopeRef = useRef<HTMLDivElement>(null);
   const processingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -78,20 +104,57 @@ function Index() {
     };
   }, []);
 
+  const promptTrimmedLen = prompt.trim().length;
+  const responseTrimmedLen = response.trim().length;
+  const promptOver = prompt.length > LIMITS.prompt;
+  const responseOver = response.length > LIMITS.response;
+  const concernOver = concern.length > LIMITS.concern;
+  const anyOverLimit = promptOver || responseOver || concernOver;
+
+  const promptError =
+    promptTouched && promptTrimmedLen === 0
+      ? "Please share what you asked the AI."
+      : promptOver
+        ? `Please shorten this to ${LIMITS.prompt.toLocaleString()} characters or fewer.`
+        : null;
+  const responseError =
+    responseTouched && responseTrimmedLen === 0
+      ? "Please paste what the AI said."
+      : responseOver
+        ? `Please shorten this to ${LIMITS.response.toLocaleString()} characters or fewer.`
+        : null;
+  const concernError = concernOver
+    ? `Please shorten this to ${LIMITS.concern.toLocaleString()} characters or fewer.`
+    : null;
+
   const canAnalyze = useMemo(
-    () => prompt.trim().length > 0 && response.trim().length > 0 && uiState !== "processing",
-    [prompt, response, uiState],
+    () =>
+      promptTrimmedLen > 0 &&
+      responseTrimmedLen > 0 &&
+      !anyOverLimit &&
+      uiState !== "processing",
+    [promptTrimmedLen, responseTrimmedLen, anyOverLimit, uiState],
   );
 
   useEffect(() => {
     if (uiState === "result" && resultRef.current) {
       resultRef.current.focus();
     }
+    if (uiState === "scope_blocked" && scopeRef.current) {
+      scopeRef.current.focus();
+    }
   }, [uiState]);
 
   function handleAnalyze(e: React.FormEvent) {
     e.preventDefault();
+    setPromptTouched(true);
+    setResponseTouched(true);
     if (!canAnalyze) return;
+    if (isOutOfScope(prompt, response, concern)) {
+      setResult(null);
+      setUiState("scope_blocked");
+      return;
+    }
     setUiState("processing");
     setResult(null);
     processingTimer.current = setTimeout(() => {
@@ -100,27 +163,29 @@ function Index() {
     }, 900);
   }
 
-  function handleClearForm() {
+  function resetAll() {
     if (processingTimer.current) clearTimeout(processingTimer.current);
     setPrompt("");
     setResponse("");
     setConcern("");
     setResult(null);
+    setPromptTouched(false);
+    setResponseTouched(false);
     setUiState("input");
+  }
+
+  function handleClearForm() {
+    resetAll();
   }
 
   function handleAnalyzeAnother() {
-    if (processingTimer.current) clearTimeout(processingTimer.current);
-    setPrompt("");
-    setResponse("");
-    setConcern("");
-    setResult(null);
-    setUiState("input");
+    resetAll();
   }
 
   function handleClearSession() {
-    handleClearForm();
+    resetAll();
   }
+
 
   async function handleCopyResult() {
     if (!result) return;
@@ -162,7 +227,7 @@ function Index() {
           </p>
         </header>
 
-        {uiState !== "result" && (
+        {uiState !== "result" && uiState !== "scope_blocked" && (
           <form onSubmit={handleAnalyze} noValidate className="space-y-8">
             <FieldTextarea
               id="prompt"
@@ -170,10 +235,12 @@ function Index() {
               required
               value={prompt}
               onChange={setPrompt}
+              onBlur={() => setPromptTouched(true)}
               max={LIMITS.prompt}
               placeholder="Paste the prompt or question you gave the AI."
               minRows={4}
               disabled={uiState === "processing"}
+              error={promptError}
             />
 
             <FieldTextarea
@@ -182,10 +249,12 @@ function Index() {
               required
               value={response}
               onChange={setResponse}
+              onBlur={() => setResponseTouched(true)}
               max={LIMITS.response}
               placeholder="Paste the response that seemed wrong, misleading, or unhelpful."
               minRows={7}
               disabled={uiState === "processing"}
+              error={responseError}
             />
 
             <FieldTextarea
@@ -198,6 +267,7 @@ function Index() {
               minRows={3}
               disabled={uiState === "processing"}
               hint="Optional"
+              error={concernError}
             />
 
             <div className="space-y-3">
@@ -246,11 +316,38 @@ function Index() {
                 id="analyze-help"
                 className="text-right text-xs text-muted-foreground"
               >
-                Fill in the prompt and the AI response to continue.
+                {anyOverLimit
+                  ? "Please shorten fields that exceed their character limit."
+                  : "Fill in the prompt and the AI response to continue."}
               </p>
             )}
           </form>
         )}
+
+        {uiState === "scope_blocked" && (
+          <section
+            ref={scopeRef}
+            tabIndex={-1}
+            aria-labelledby="scope-heading"
+            aria-live="polite"
+            className="space-y-6 outline-none"
+          >
+            <Alert>
+              <AlertTitle id="scope-heading">Out of scope</AlertTitle>
+              <AlertDescription>{SCOPE_BLOCK_MESSAGE}</AlertDescription>
+            </Alert>
+            <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                onClick={handleAnalyzeAnother}
+                className="min-h-11 sm:w-auto"
+              >
+                Start over
+              </Button>
+            </div>
+          </section>
+        )}
+
 
         {uiState === "processing" && (
           <div
@@ -355,26 +452,31 @@ function FieldTextarea({
   label,
   value,
   onChange,
+  onBlur,
   max,
   required,
   placeholder,
   minRows = 3,
   disabled,
   hint,
+  error,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
+  onBlur?: () => void;
   max: number;
   required?: boolean;
   placeholder?: string;
   minRows?: number;
   disabled?: boolean;
   hint?: string;
+  error?: string | null;
 }) {
   const countId = `${id}-count`;
   const hintId = hint ? `${id}-hint` : undefined;
+  const errorId = error ? `${id}-error` : undefined;
   const overLimit = value.length > max;
 
   return (
@@ -399,26 +501,39 @@ function FieldTextarea({
       <Textarea
         id={id}
         value={value}
-        onChange={(e) => onChange(e.target.value.slice(0, max))}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
         required={required}
         disabled={disabled}
         rows={minRows}
-        aria-describedby={[countId, hintId].filter(Boolean).join(" ") || undefined}
-        aria-invalid={overLimit || undefined}
+        aria-describedby={
+          [countId, hintId, errorId].filter(Boolean).join(" ") || undefined
+        }
+        aria-invalid={overLimit || Boolean(error) || undefined}
         className="min-h-[7rem] resize-y bg-background text-foreground placeholder:text-muted-foreground"
       />
-      <div
-        id={countId}
-        className={`text-right text-xs tabular-nums ${
-          overLimit ? "text-destructive" : "text-muted-foreground"
-        }`}
-      >
-        {value.length.toLocaleString()} / {max.toLocaleString()} characters
+      <div className="flex items-start justify-between gap-3">
+        {error ? (
+          <p id={errorId} className="text-xs text-destructive">
+            {error}
+          </p>
+        ) : (
+          <span />
+        )}
+        <div
+          id={countId}
+          className={`text-right text-xs tabular-nums ${
+            overLimit ? "text-destructive" : "text-muted-foreground"
+          }`}
+        >
+          {value.length.toLocaleString()} / {max.toLocaleString()} characters
+        </div>
       </div>
     </div>
   );
 }
+
 
 function ResultBlock({
   title,
