@@ -227,7 +227,7 @@ function Index() {
           </p>
         </header>
 
-        {uiState !== "result" && (
+        {uiState !== "result" && uiState !== "scope_blocked" && (
           <form onSubmit={handleAnalyze} noValidate className="space-y-8">
             <FieldTextarea
               id="prompt"
@@ -235,10 +235,12 @@ function Index() {
               required
               value={prompt}
               onChange={setPrompt}
+              onBlur={() => setPromptTouched(true)}
               max={LIMITS.prompt}
               placeholder="Paste the prompt or question you gave the AI."
               minRows={4}
               disabled={uiState === "processing"}
+              error={promptError}
             />
 
             <FieldTextarea
@@ -247,10 +249,12 @@ function Index() {
               required
               value={response}
               onChange={setResponse}
+              onBlur={() => setResponseTouched(true)}
               max={LIMITS.response}
               placeholder="Paste the response that seemed wrong, misleading, or unhelpful."
               minRows={7}
               disabled={uiState === "processing"}
+              error={responseError}
             />
 
             <FieldTextarea
@@ -263,6 +267,7 @@ function Index() {
               minRows={3}
               disabled={uiState === "processing"}
               hint="Optional"
+              error={concernError}
             />
 
             <div className="space-y-3">
@@ -311,11 +316,38 @@ function Index() {
                 id="analyze-help"
                 className="text-right text-xs text-muted-foreground"
               >
-                Fill in the prompt and the AI response to continue.
+                {anyOverLimit
+                  ? "Please shorten fields that exceed their character limit."
+                  : "Fill in the prompt and the AI response to continue."}
               </p>
             )}
           </form>
         )}
+
+        {uiState === "scope_blocked" && (
+          <section
+            ref={scopeRef}
+            tabIndex={-1}
+            aria-labelledby="scope-heading"
+            aria-live="polite"
+            className="space-y-6 outline-none"
+          >
+            <Alert>
+              <AlertTitle id="scope-heading">Out of scope</AlertTitle>
+              <AlertDescription>{SCOPE_BLOCK_MESSAGE}</AlertDescription>
+            </Alert>
+            <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                onClick={handleAnalyzeAnother}
+                className="min-h-11 sm:w-auto"
+              >
+                Start over
+              </Button>
+            </div>
+          </section>
+        )}
+
 
         {uiState === "processing" && (
           <div
