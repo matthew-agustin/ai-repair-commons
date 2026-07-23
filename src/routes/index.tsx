@@ -45,20 +45,20 @@ type DemoResult = {
 };
 
 // Placeholder demonstration data (fabricated-citation example).
+// `betterNextPrompt` is intentionally omitted here because this example routes to
+// Verify rather than Repair; the field is preserved on the type for future Repair results.
 const DEMO_RESULT: DemoResult = {
   whatMayHaveHappened:
-    "The response may have included a fabricated citation. When asked for a source, the model appears to have generated an author, title, and year that sound plausible together but do not correspond to a real publication. This pattern is often called a 'hallucinated reference' and is common when a model is pushed to cite something specific it does not actually have.",
+    "This looks like a possible grounding failure. The response presents a highly specific article title, journal, sample size, percentage, and DOI, but the source could not be independently located. The model may have fabricated or inaccurately reconstructed those details. The exchange alone cannot establish whether the article exists, so it should not be treated as reliable evidence.",
   whatIsStillUncertain:
-    "Without checking the citation against a library catalog or database, it is not possible to be certain the source is invented. Some real works have similar titles, and the model may have combined details from more than one source. Treat this as a strong hypothesis rather than a definitive judgment.",
+    "It is not possible to tell from this exchange alone whether the article exists in some form, whether specific details (authors, journal, year, DOI) are partially correct, or whether the citation is entirely invented. The citation must be checked through an independent scholarly source — such as Crossref, Google Scholar, a university library database, or the journal's official site — before drawing any conclusion.",
   whatToDoNow: [
-    "Search for the exact title and author in a library catalog, Google Scholar, or your school's database.",
-    "If nothing matches, ask the AI to explain how it knows the source exists — and treat vague answers as a signal to drop the citation.",
-    "Replace any use of the citation in your own work with a source you can actually open and read.",
+    "Search the exact title, authors, and DOI through Crossref, Google Scholar, a library database, or the journal's official site.",
+    "If no authoritative record appears, treat the citation as unverified rather than asking the same AI to validate it.",
+    "Do not cite the article or repeat its findings unless you can open and inspect the original source.",
   ],
-  betterNextPrompt:
-    "Give me two or three peer-reviewed sources on [topic]. For each one, include the author, year, and journal, and only list sources you are confident actually exist. If you are unsure, say so instead of guessing.",
   whatToNoticeNextTime:
-    "Watch for citations that appear only after you ask for them, especially when the model sounds very confident but the details (author, journal, year) are unusually tidy. That combination — confident tone plus a source that only appears on request — is a common tell for a fabricated reference.",
+    "Specific titles, statistics, journal details, and DOI-like strings can sound authoritative even when they are inaccurate. Verify AI-generated citations through an independent scholarly source before relying on them.",
 };
 
 function Index() {
