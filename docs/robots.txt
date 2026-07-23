@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://matthew-agustin.github.io/ai-repair-commons/sitemap.xml
