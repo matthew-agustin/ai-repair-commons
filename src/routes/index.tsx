@@ -452,26 +452,31 @@ function FieldTextarea({
   label,
   value,
   onChange,
+  onBlur,
   max,
   required,
   placeholder,
   minRows = 3,
   disabled,
   hint,
+  error,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (v: string) => void;
+  onBlur?: () => void;
   max: number;
   required?: boolean;
   placeholder?: string;
   minRows?: number;
   disabled?: boolean;
   hint?: string;
+  error?: string | null;
 }) {
   const countId = `${id}-count`;
   const hintId = hint ? `${id}-hint` : undefined;
+  const errorId = error ? `${id}-error` : undefined;
   const overLimit = value.length > max;
 
   return (
@@ -496,26 +501,39 @@ function FieldTextarea({
       <Textarea
         id={id}
         value={value}
-        onChange={(e) => onChange(e.target.value.slice(0, max))}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         placeholder={placeholder}
         required={required}
         disabled={disabled}
         rows={minRows}
-        aria-describedby={[countId, hintId].filter(Boolean).join(" ") || undefined}
-        aria-invalid={overLimit || undefined}
+        aria-describedby={
+          [countId, hintId, errorId].filter(Boolean).join(" ") || undefined
+        }
+        aria-invalid={overLimit || Boolean(error) || undefined}
         className="min-h-[7rem] resize-y bg-background text-foreground placeholder:text-muted-foreground"
       />
-      <div
-        id={countId}
-        className={`text-right text-xs tabular-nums ${
-          overLimit ? "text-destructive" : "text-muted-foreground"
-        }`}
-      >
-        {value.length.toLocaleString()} / {max.toLocaleString()} characters
+      <div className="flex items-start justify-between gap-3">
+        {error ? (
+          <p id={errorId} className="text-xs text-destructive">
+            {error}
+          </p>
+        ) : (
+          <span />
+        )}
+        <div
+          id={countId}
+          className={`text-right text-xs tabular-nums ${
+            overLimit ? "text-destructive" : "text-muted-foreground"
+          }`}
+        >
+          {value.length.toLocaleString()} / {max.toLocaleString()} characters
+        </div>
       </div>
     </div>
   );
 }
+
 
 function ResultBlock({
   title,
