@@ -139,12 +139,18 @@ export function validateAnalysisResult(input: unknown): ValidationOutcome {
       push("clarification requires primary_route to be null.");
     if (secondary_route !== null)
       push("clarification requires secondary_route to be null.");
+    if (secondary_category !== null)
+      push("clarification requires secondary_category to be null.");
+    if (transfer_signal !== null)
+      push("clarification requires transfer_signal to be null.");
     if (steps.length !== 0) push("clarification requires empty steps.");
     if (repair_prompt !== null)
       push("clarification requires repair_prompt to be null.");
   } else {
     if (clarifying_question !== null)
       push("clarifying_question must be null when not requesting clarification.");
+    if (primary_category === "unclear")
+      push("primary_category 'unclear' requires needs_clarification to be true.");
   }
 
   // No-clear-failure state.
