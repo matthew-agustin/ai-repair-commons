@@ -5,6 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  validateAnalysisResult,
+  type AnalysisResult,
+} from "@/lib/analysis-result";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -34,31 +38,26 @@ const LIMITS = {
   concern: 1000,
 } as const;
 
-type UiState = "input" | "processing" | "result" | "scope_blocked";
-
-type DemoResult = {
-  whatMayHaveHappened: string;
-  whatIsStillUncertain: string;
-  whatToDoNow: string[];
-  betterNextPrompt?: string;
-  whatToNoticeNextTime: string;
-};
+type UiState =
+  | "input"
+  | "processing"
+  | "result"
+  | "scope_blocked"
+  | "invalid_result";
 
 const SCOPE_BLOCK_MESSAGE =
   "This prototype is designed for learning-related AI interactions and cannot responsibly evaluate this situation. Do not rely on it for medical, legal, financial, crisis, safety, or disciplinary guidance. Consider contacting an appropriate qualified person or emergency service.";
 
+const INVALID_RESULT_MESSAGE =
+  "We could not produce a reliable result from this interaction. Please clear the session and try again.";
+
 // Deterministic client-side scope screen. Intentionally conservative: matches
 // obvious high-stakes phrasing only. Not a substitute for server-side checks.
 const SCOPE_PATTERNS: RegExp[] = [
-  // medical
   /\b(diagnos(e|is|ed|ing)|prescrib(e|ed|ing)|dosage|dose of|mg\/kg|symptoms? of|treat(ment)? for|medication|prognosis|is (this|it) cancer|chest pain|overdose)\b/i,
-  // legal
   /\b(legal advice|sue|lawsuit|plead guilty|custody|restraining order|deportation|my lawyer|criminal charge|is (this|it) legal|tenant rights)\b/i,
-  // financial
   /\b(financial advice|invest(ing)? in|should i buy .* stock|tax advice|file (my|for) bankruptcy|mortgage advice|retirement plan|which stock|crypto to buy)\b/i,
-  // crisis / self-harm / safety
   /\b(suicid(e|al)|kill myself|end my life|self[- ]harm|hurt myself|want to die|overdose|emergency|call 911|in danger|being abused|domestic violence|someone is (hurting|threatening) me)\b/i,
-  // disciplinary
   /\b(academic (integrity|misconduct)|honor code|expelled|expulsion|disciplinary (hearing|action|committee)|title ix|plagiarism hearing|suspended from school)\b/i,
 ];
 
@@ -67,21 +66,30 @@ function isOutOfScope(...texts: string[]): boolean {
   return SCOPE_PATTERNS.some((re) => re.test(joined));
 }
 
-// Placeholder demonstration data (fabricated-citation example).
-// `betterNextPrompt` is intentionally omitted here because this example routes to
-// Verify rather than Repair; the field is preserved on the type for future Repair results.
-const DEMO_RESULT: DemoResult = {
-  whatMayHaveHappened:
+// Placeholder demonstration data (fabricated-citation example) expressed via
+// the shared AnalysisResult contract. This example routes to Verify, so
+// `repair_prompt` is null — the repair-prompt block stays hidden.
+const DEMO_RESULT_RAW: AnalysisResult = {
+  needs_clarification: false,
+  clarifying_question: null,
+  primary_category: "grounding",
+  secondary_category: null,
+  assessment:
     "This looks like a possible grounding failure. The response presents a highly specific article title, journal, sample size, percentage, and DOI, but the source could not be independently located. The model may have fabricated or inaccurately reconstructed those details. The exchange alone cannot establish whether the article exists, so it should not be treated as reliable evidence.",
-  whatIsStillUncertain:
+  confidence: "moderate",
+  uncertainty:
     "It is not possible to tell from this exchange alone whether the article exists in some form, whether specific details (authors, journal, year, DOI) are partially correct, or whether the citation is entirely invented. The citation must be checked through an independent scholarly source — such as Crossref, Google Scholar, a university library database, or the journal's official site — before drawing any conclusion.",
-  whatToDoNow: [
+  primary_route: "verify",
+  secondary_route: null,
+  steps: [
     "Search the exact title, authors, and DOI through Crossref, Google Scholar, a library database, or the journal's official site.",
     "If no authoritative record appears, treat the citation as unverified rather than asking the same AI to validate it.",
     "Do not cite the article or repeat its findings unless you can open and inspect the original source.",
   ],
-  whatToNoticeNextTime:
+  repair_prompt: null,
+  transfer_signal:
     "Specific titles, statistics, journal details, and DOI-like strings can sound authoritative even when they are inaccurate. Verify AI-generated citations through an independent scholarly source before relying on them.",
+  scope_warning: null,
 };
 
 function Index() {
@@ -89,13 +97,14 @@ function Index() {
   const [response, setResponse] = useState("");
   const [concern, setConcern] = useState("");
   const [uiState, setUiState] = useState<UiState>("input");
-  const [result, setResult] = useState<DemoResult | null>(null);
+  const [result, setResult] = useState<AnalysisResult | null>(null);
   const [copied, setCopied] = useState(false);
   const [promptTouched, setPromptTouched] = useState(false);
   const [responseTouched, setResponseTouched] = useState(false);
 
   const resultRef = useRef<HTMLDivElement>(null);
   const scopeRef = useRef<HTMLDivElement>(null);
+  const invalidRef = useRef<HTMLDivElement>(null);
   const processingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -137,12 +146,10 @@ function Index() {
   );
 
   useEffect(() => {
-    if (uiState === "result" && resultRef.current) {
-      resultRef.current.focus();
-    }
-    if (uiState === "scope_blocked" && scopeRef.current) {
-      scopeRef.current.focus();
-    }
+    if (uiState === "result" && resultRef.current) resultRef.current.focus();
+    if (uiState === "scope_blocked" && scopeRef.current) scopeRef.current.focus();
+    if (uiState === "invalid_result" && invalidRef.current)
+      invalidRef.current.focus();
   }, [uiState]);
 
   function handleAnalyze(e: React.FormEvent) {
@@ -158,7 +165,21 @@ function Index() {
     setUiState("processing");
     setResult(null);
     processingTimer.current = setTimeout(() => {
-      setResult(DEMO_RESULT);
+      const outcome = validateAnalysisResult(DEMO_RESULT_RAW);
+      if (!outcome.ok) {
+        // Developer-only diagnostics; never surfaced to the user.
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            "[AI Repair Commons] Analysis result failed validation:",
+            outcome.errors,
+          );
+        }
+        setResult(null);
+        setUiState("invalid_result");
+        return;
+      }
+      setResult(outcome.value);
       setUiState("result");
     }, 900);
   }
@@ -173,19 +194,6 @@ function Index() {
     setResponseTouched(false);
     setUiState("input");
   }
-
-  function handleClearForm() {
-    resetAll();
-  }
-
-  function handleAnalyzeAnother() {
-    resetAll();
-  }
-
-  function handleClearSession() {
-    resetAll();
-  }
-
 
   async function handleCopyResult() {
     if (!result) return;
@@ -227,102 +235,104 @@ function Index() {
           </p>
         </header>
 
-        {uiState !== "result" && uiState !== "scope_blocked" && (
-          <form onSubmit={handleAnalyze} noValidate className="space-y-8">
-            <FieldTextarea
-              id="prompt"
-              label="What did you ask the AI?"
-              required
-              value={prompt}
-              onChange={setPrompt}
-              onBlur={() => setPromptTouched(true)}
-              max={LIMITS.prompt}
-              placeholder="Paste the prompt or question you gave the AI."
-              minRows={4}
-              disabled={uiState === "processing"}
-              error={promptError}
-            />
-
-            <FieldTextarea
-              id="response"
-              label="What did the AI say?"
-              required
-              value={response}
-              onChange={setResponse}
-              onBlur={() => setResponseTouched(true)}
-              max={LIMITS.response}
-              placeholder="Paste the response that seemed wrong, misleading, or unhelpful."
-              minRows={7}
-              disabled={uiState === "processing"}
-              error={responseError}
-            />
-
-            <FieldTextarea
-              id="concern"
-              label="What made you question it?"
-              value={concern}
-              onChange={setConcern}
-              max={LIMITS.concern}
-              placeholder="For example: I could not find the source, the reasoning did not make sense, or the answer felt too confident."
-              minRows={3}
-              disabled={uiState === "processing"}
-              hint="Optional"
-              error={concernError}
-            />
-
-            <div className="space-y-3">
-              <Alert>
-                <AlertTitle>Before you paste</AlertTitle>
-                <AlertDescription>
-                  Please remove names, student IDs, private records, health
-                  information, and other sensitive details. Only share what you
-                  are comfortable analyzing.
-                </AlertDescription>
-              </Alert>
-
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                Provisional privacy note: this MVP does not create accounts or
-                intentionally save conversation history.
-              </p>
-            </div>
-
-            <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-end">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={handleClearForm}
+        {uiState !== "result" &&
+          uiState !== "scope_blocked" &&
+          uiState !== "invalid_result" && (
+            <form onSubmit={handleAnalyze} noValidate className="space-y-8">
+              <FieldTextarea
+                id="prompt"
+                label="What did you ask the AI?"
+                required
+                value={prompt}
+                onChange={setPrompt}
+                onBlur={() => setPromptTouched(true)}
+                max={LIMITS.prompt}
+                placeholder="Paste the prompt or question you gave the AI."
+                minRows={4}
                 disabled={uiState === "processing"}
-                className="min-h-11 sm:w-auto"
-              >
-                Clear
-              </Button>
-              <Button
-                type="submit"
-                disabled={!canAnalyze}
-                className="min-h-11 sm:w-auto"
-                aria-describedby={
-                  !canAnalyze && uiState !== "processing"
-                    ? "analyze-help"
-                    : undefined
-                }
-              >
-                {uiState === "processing"
-                  ? "Analyzing…"
-                  : "Analyze this interaction"}
-              </Button>
-            </div>
-            {!canAnalyze && uiState !== "processing" && (
-              <p
-                id="analyze-help"
-                className="text-right text-xs text-muted-foreground"
-              >
-                {anyOverLimit
-                  ? "Please shorten fields that exceed their character limit."
-                  : "Fill in the prompt and the AI response to continue."}
-              </p>
-            )}
-          </form>
-        )}
+                error={promptError}
+              />
+
+              <FieldTextarea
+                id="response"
+                label="What did the AI say?"
+                required
+                value={response}
+                onChange={setResponse}
+                onBlur={() => setResponseTouched(true)}
+                max={LIMITS.response}
+                placeholder="Paste the response that seemed wrong, misleading, or unhelpful."
+                minRows={7}
+                disabled={uiState === "processing"}
+                error={responseError}
+              />
+
+              <FieldTextarea
+                id="concern"
+                label="What made you question it?"
+                value={concern}
+                onChange={setConcern}
+                max={LIMITS.concern}
+                placeholder="For example: I could not find the source, the reasoning did not make sense, or the answer felt too confident."
+                minRows={3}
+                disabled={uiState === "processing"}
+                hint="Optional"
+                error={concernError}
+              />
+
+              <div className="space-y-3">
+                <Alert>
+                  <AlertTitle>Before you paste</AlertTitle>
+                  <AlertDescription>
+                    Please remove names, student IDs, private records, health
+                    information, and other sensitive details. Only share what you
+                    are comfortable analyzing.
+                  </AlertDescription>
+                </Alert>
+
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Provisional privacy note: this MVP does not create accounts or
+                  intentionally save conversation history.
+                </p>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={resetAll}
+                  disabled={uiState === "processing"}
+                  className="min-h-11 sm:w-auto"
+                >
+                  Clear
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!canAnalyze}
+                  className="min-h-11 sm:w-auto"
+                  aria-describedby={
+                    !canAnalyze && uiState !== "processing"
+                      ? "analyze-help"
+                      : undefined
+                  }
+                >
+                  {uiState === "processing"
+                    ? "Analyzing…"
+                    : "Analyze this interaction"}
+                </Button>
+              </div>
+              {!canAnalyze && uiState !== "processing" && (
+                <p
+                  id="analyze-help"
+                  className="text-right text-xs text-muted-foreground"
+                >
+                  {anyOverLimit
+                    ? "Please shorten fields that exceed their character limit."
+                    : "Fill in the prompt and the AI response to continue."}
+                </p>
+              )}
+            </form>
+          )}
 
         {uiState === "scope_blocked" && (
           <section
@@ -339,7 +349,7 @@ function Index() {
             <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
               <Button
                 type="button"
-                onClick={handleAnalyzeAnother}
+                onClick={resetAll}
                 className="min-h-11 sm:w-auto"
               >
                 Start over
@@ -348,6 +358,29 @@ function Index() {
           </section>
         )}
 
+        {uiState === "invalid_result" && (
+          <section
+            ref={invalidRef}
+            tabIndex={-1}
+            aria-labelledby="invalid-heading"
+            aria-live="polite"
+            className="space-y-6 outline-none"
+          >
+            <Alert>
+              <AlertTitle id="invalid-heading">Result unavailable</AlertTitle>
+              <AlertDescription>{INVALID_RESULT_MESSAGE}</AlertDescription>
+            </Alert>
+            <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
+              <Button
+                type="button"
+                onClick={resetAll}
+                className="min-h-11 sm:w-auto"
+              >
+                Clear and delete this session
+              </Button>
+            </div>
+          </section>
+        )}
 
         {uiState === "processing" && (
           <div
@@ -383,32 +416,36 @@ function Index() {
             </div>
 
             <ResultBlock title="What may have happened">
-              {result.whatMayHaveHappened}
+              {result.assessment}
             </ResultBlock>
 
             <ResultBlock title="What is still uncertain">
-              {result.whatIsStillUncertain}
+              {result.uncertainty}
             </ResultBlock>
 
-            <ResultBlock title="What to do now">
-              <ol className="list-decimal space-y-2 pl-5">
-                {result.whatToDoNow.map((step, i) => (
-                  <li key={i}>{step}</li>
-                ))}
-              </ol>
-            </ResultBlock>
+            {result.steps.length > 0 && (
+              <ResultBlock title="What to do now">
+                <ol className="list-decimal space-y-2 pl-5">
+                  {result.steps.map((step, i) => (
+                    <li key={i}>{step}</li>
+                  ))}
+                </ol>
+              </ResultBlock>
+            )}
 
-            {result.betterNextPrompt && (
+            {result.repair_prompt && (
               <ResultBlock title="A better next prompt">
                 <pre className="whitespace-pre-wrap rounded-md border border-border bg-muted/50 p-4 font-sans text-sm leading-relaxed text-foreground">
-                  {result.betterNextPrompt}
+                  {result.repair_prompt}
                 </pre>
               </ResultBlock>
             )}
 
-            <ResultBlock title="What to notice next time">
-              {result.whatToNoticeNextTime}
-            </ResultBlock>
+            {result.transfer_signal && (
+              <ResultBlock title="What to notice next time">
+                {result.transfer_signal}
+              </ResultBlock>
+            )}
 
             <div
               role="group"
@@ -426,7 +463,7 @@ function Index() {
               <Button
                 type="button"
                 variant="secondary"
-                onClick={handleAnalyzeAnother}
+                onClick={resetAll}
                 className="min-h-11 sm:w-auto"
               >
                 Analyze another interaction
@@ -434,7 +471,7 @@ function Index() {
               <Button
                 type="button"
                 variant="ghost"
-                onClick={handleClearSession}
+                onClick={resetAll}
                 className="min-h-11 sm:w-auto"
               >
                 Clear and delete this session
@@ -534,7 +571,6 @@ function FieldTextarea({
   );
 }
 
-
 function ResultBlock({
   title,
   children,
@@ -552,22 +588,25 @@ function ResultBlock({
   );
 }
 
-function formatResultForClipboard(r: DemoResult) {
+function formatResultForClipboard(r: AnalysisResult) {
   const lines = [
     "AI Repair Commons — analysis",
     "",
     "What may have happened",
-    r.whatMayHaveHappened,
+    r.assessment,
     "",
     "What is still uncertain",
-    r.whatIsStillUncertain,
-    "",
-    "What to do now",
-    ...r.whatToDoNow.map((s, i) => `${i + 1}. ${s}`),
+    r.uncertainty,
   ];
-  if (r.betterNextPrompt) {
-    lines.push("", "A better next prompt", r.betterNextPrompt);
+  if (r.steps.length > 0) {
+    lines.push("", "What to do now");
+    r.steps.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
   }
-  lines.push("", "What to notice next time", r.whatToNoticeNextTime);
+  if (r.repair_prompt) {
+    lines.push("", "A better next prompt", r.repair_prompt);
+  }
+  if (r.transfer_signal) {
+    lines.push("", "What to notice next time", r.transfer_signal);
+  }
   return lines.join("\n");
 }
