@@ -392,13 +392,138 @@ function Index() {
           </div>
         )}
 
-        {uiState === "result" && result && (
+        {uiState === "result" &&
+          result &&
+          result.needs_clarification &&
+          result.primary_category === "unclear" && (
+            <section
+              ref={resultRef}
+              tabIndex={-1}
+              aria-labelledby="clarification-heading"
+              aria-live="polite"
+              className="space-y-8 outline-none"
+            >
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Clarification
+                </p>
+                <h2
+                  id="clarification-heading"
+                  className="text-2xl font-semibold tracking-tight text-foreground"
+                >
+                  One clarification is needed
+                </h2>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  This interaction does not yet contain enough detail to support
+                  a responsible assessment.
+                </p>
+              </div>
+
+              {result.clarifying_question && (
+                <p className="rounded-md border border-border bg-muted/50 px-4 py-4 text-lg leading-relaxed text-foreground">
+                  {result.clarifying_question}
+                </p>
+              )}
+
+              <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
+                <Button
+                  type="button"
+                  onClick={resetAll}
+                  className="min-h-11 sm:w-auto"
+                >
+                  Clear and start again
+                </Button>
+              </div>
+            </section>
+          )}
+
+        {uiState === "result" &&
+          result &&
+          !result.needs_clarification &&
+          result.primary_category === "no_clear_failure" && (
+            <section
+              ref={resultRef}
+              tabIndex={-1}
+              aria-labelledby="no-failure-heading"
+              className="space-y-8 outline-none"
+            >
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Analysis
+                </p>
+                <h2
+                  id="no-failure-heading"
+                  className="text-2xl font-semibold tracking-tight text-foreground"
+                >
+                  No clear failure is evident
+                </h2>
+              </div>
+
+              <ResultBlock title="What may have happened">
+                {result.assessment}
+              </ResultBlock>
+
+              <ResultBlock title="What is still uncertain">
+                {result.uncertainty}
+              </ResultBlock>
+
+              {result.steps.length > 0 && (
+                <ResultBlock title="One thing you could do">
+                  {result.steps[0]}
+                </ResultBlock>
+              )}
+
+              {result.transfer_signal && (
+                <ResultBlock title="What to notice next time">
+                  {result.transfer_signal}
+                </ResultBlock>
+              )}
+
+              <div
+                role="group"
+                aria-label="Result actions"
+                className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:flex-wrap sm:items-center"
+              >
+                <Button
+                  type="button"
+                  onClick={handleCopyResult}
+                  className="min-h-11 sm:w-auto"
+                  aria-live="polite"
+                >
+                  {copied ? "Result copied" : "Copy result"}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={resetAll}
+                  className="min-h-11 sm:w-auto"
+                >
+                  Analyze another interaction
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={resetAll}
+                  className="min-h-11 sm:w-auto"
+                >
+                  Clear and delete this session
+                </Button>
+              </div>
+            </section>
+          )}
+
+        {uiState === "result" &&
+          result &&
+          !result.needs_clarification &&
+          result.primary_category !== "unclear" &&
+          result.primary_category !== "no_clear_failure" && (
           <section
             ref={resultRef}
             tabIndex={-1}
             aria-labelledby="result-heading"
             className="space-y-8 outline-none"
           >
+
             <div className="space-y-2">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Analysis
