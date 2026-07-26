@@ -231,6 +231,13 @@ function Index() {
     setUiState("input");
   }
 
+  function reviseInteraction() {
+    // Invalidate any in-flight submission while preserving the submitted fields.
+    submissionId.current += 1;
+    setResult(null);
+    setCopied(false);
+    setUiState("input");
+  }
 
   async function handleCopyResult() {
     if (!result) return;
@@ -465,14 +472,7 @@ function Index() {
               <div className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center">
                 <Button
                   type="button"
-                  onClick={resetAll}
-                  function reviseInteraction() {
-                    // Invalidate any in-flight submission while preserving the submitted fields.
-                    submissionId.current += 1;
-                    setResult(null);
-                    setCopied(false);
-                    setUiState("input");
-                  }
+                  onClick={reviseInteraction}
                   className="min-h-11 sm:w-auto"
                 >
                   Revise the interaction
@@ -540,13 +540,12 @@ function Index() {
                   {copied ? "Result copied" : "Copy result"}
                 </Button>
         
-                <<Button
+                <Button
                   type="button"
-                  onClick={reviseInteraction}
+                  variant="secondary"
+                  onClick={resetAll}
                   className="min-h-11 sm:w-auto"
                 >
-                  Revise the interaction
-                </Button>
                   Start a new interaction
                 </Button>
               </div>
