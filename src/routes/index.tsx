@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+import { analyzeInteraction } from "@/lib/analyze.functions";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,31 +54,6 @@ const INVALID_RESULT_MESSAGE =
   "We could not produce a reliable result from this interaction. Please clear the session and try again.";
 
 
-// Placeholder demonstration data (fabricated-citation example) expressed via
-// the shared AnalysisResult contract. This example routes to Verify, so
-// `repair_prompt` is null — the repair-prompt block stays hidden.
-const DEMO_RESULT_RAW: AnalysisResult = {
-  needs_clarification: false,
-  clarifying_question: null,
-  primary_category: "grounding",
-  secondary_category: null,
-  assessment:
-    "This looks like a possible grounding failure. The response presents a highly specific article title, journal, sample size, percentage, and DOI, but the source could not be independently located. The model may have fabricated or inaccurately reconstructed those details. The exchange alone cannot establish whether the article exists, so it should not be treated as reliable evidence.",
-  confidence: "moderate",
-  uncertainty:
-    "It is not possible to tell from this exchange alone whether the article exists in some form, whether specific details (authors, journal, year, DOI) are partially correct, or whether the citation is entirely invented. The citation must be checked through an independent scholarly source — such as Crossref, Google Scholar, a university library database, or the journal's official site — before drawing any conclusion.",
-  primary_route: "verify",
-  secondary_route: null,
-  steps: [
-    "Search the exact title, authors, and DOI through Crossref, Google Scholar, a library database, or the journal's official site.",
-    "If no authoritative record appears, treat the citation as unverified rather than asking the same AI to validate it.",
-    "Do not cite the article or repeat its findings unless you can open and inspect the original source.",
-  ],
-  repair_prompt: null,
-  transfer_signal:
-    "Specific titles, statistics, journal details, and DOI-like strings can sound authoritative even when they are inaccurate. Verify AI-generated citations through an independent scholarly source before relying on them.",
-  scope_warning: null,
-};
 
 function Index() {
   const [prompt, setPrompt] = useState("");
@@ -90,13 +68,10 @@ function Index() {
   const resultRef = useRef<HTMLDivElement>(null);
   const scopeRef = useRef<HTMLDivElement>(null);
   const invalidRef = useRef<HTMLDivElement>(null);
-  const processingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Monotonic submission id: only the newest submission may update state.
+  const submissionId = useRef(0);
 
-  useEffect(() => {
-    return () => {
-      if (processingTimer.current) clearTimeout(processingTimer.current);
-    };
-  }, []);
+  const analyze = useServerFn(analyzeInteraction);
 
   const promptTrimmedLen = prompt.trim().length;
   const responseTrimmedLen = response.trim().length;
@@ -137,48 +112,88 @@ function Index() {
       invalidRef.current.focus();
   }, [uiState]);
 
-  function handleAnalyze(e: React.FormEvent) {
+  async function handleAnalyze(e: React.FormEvent) {
     e.preventDefault();
     setPromptTouched(true);
     setResponseTouched(true);
     if (!canAnalyze) return;
     if (isOutOfScope(prompt, response, concern)) {
+      submissionId.current += 1;
       setResult(null);
       setUiState("scope_blocked");
       return;
     }
-    setUiState("processing");
+
+    const requestId = ++submissionId.current;
+    const isCurrent = () => submissionId.current === requestId;
+
     setResult(null);
-    processingTimer.current = setTimeout(() => {
-      const outcome = validateAnalysisResult(DEMO_RESULT_RAW);
+    setCopied(false);
+    setUiState("processing");
+
+    const trimmedConcern = concern.trim();
+
+    try {
+      const outcome = await analyze({
+        data: {
+          prompt: prompt.trim(),
+          response: response.trim(),
+          concern: trimmedConcern.length > 0 ? trimmedConcern : null,
+        },
+      });
+      if (!isCurrent()) return;
+
       if (!outcome.ok) {
-        // Developer-only diagnostics; never surfaced to the user.
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn("[AI Repair Commons] Analysis failed:", outcome.code);
+        }
+        setResult(null);
+        setUiState(outcome.code === "out_of_scope" ? "scope_blocked" : "invalid_result");
+        return;
+      }
+
+      // The server response is untrusted at this boundary: revalidate.
+      const validation = validateAnalysisResult(outcome.result);
+      if (!validation.ok) {
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
           console.warn(
             "[AI Repair Commons] Analysis result failed validation:",
-            outcome.errors,
+            validation.errors,
           );
         }
         setResult(null);
         setUiState("invalid_result");
         return;
       }
-      setResult(outcome.value);
+
+      setResult(validation.value);
       setUiState("result");
-    }, 900);
+    } catch {
+      if (!isCurrent()) return;
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn("[AI Repair Commons] Analysis request failed to complete.");
+      }
+      setResult(null);
+      setUiState("invalid_result");
+    }
   }
 
   function resetAll() {
-    if (processingTimer.current) clearTimeout(processingTimer.current);
+    // Invalidate any in-flight submission so a late response cannot land.
+    submissionId.current += 1;
     setPrompt("");
     setResponse("");
     setConcern("");
     setResult(null);
+    setCopied(false);
     setPromptTouched(false);
     setResponseTouched(false);
     setUiState("input");
   }
+
 
   async function handleCopyResult() {
     if (!result) return;
