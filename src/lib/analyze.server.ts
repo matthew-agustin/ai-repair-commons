@@ -168,6 +168,7 @@ Writing requirements:
 - Do not write like a policy memo.
 - Do not overstate certainty.
 - Do not use the words "hallucination" or "fabricated" unless the submitted interaction directly establishes that conclusion.
+- Do not repeat the recommended route or repair-target label verbatim inside assessment when the interface already presents them separately.
 - Keep assessment focused and practically useful.
 - Keep steps concrete and ordered.
 - The user should leave knowing:
