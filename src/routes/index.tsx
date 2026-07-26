@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useMemo, useRef, useState } from "react";
+
+import { analyzeInteraction } from "@/lib/analyze.functions";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
