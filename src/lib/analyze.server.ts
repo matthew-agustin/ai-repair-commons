@@ -17,6 +17,7 @@ export type AnalyzeErrorCode =
   | "out_of_scope"
   | "server_misconfigured"
   | "provider_unavailable"
+  | "timeout"
   | "rate_limited"
   | "credits_exhausted"
   | "empty_response"
