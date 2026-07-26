@@ -51,31 +51,6 @@ const INVALID_RESULT_MESSAGE =
   "We could not produce a reliable result from this interaction. Please clear the session and try again.";
 
 
-// Placeholder demonstration data (fabricated-citation example) expressed via
-// the shared AnalysisResult contract. This example routes to Verify, so
-// `repair_prompt` is null — the repair-prompt block stays hidden.
-const DEMO_RESULT_RAW: AnalysisResult = {
-  needs_clarification: false,
-  clarifying_question: null,
-  primary_category: "grounding",
-  secondary_category: null,
-  assessment:
-    "This looks like a possible grounding failure. The response presents a highly specific article title, journal, sample size, percentage, and DOI, but the source could not be independently located. The model may have fabricated or inaccurately reconstructed those details. The exchange alone cannot establish whether the article exists, so it should not be treated as reliable evidence.",
-  confidence: "moderate",
-  uncertainty:
-    "It is not possible to tell from this exchange alone whether the article exists in some form, whether specific details (authors, journal, year, DOI) are partially correct, or whether the citation is entirely invented. The citation must be checked through an independent scholarly source — such as Crossref, Google Scholar, a university library database, or the journal's official site — before drawing any conclusion.",
-  primary_route: "verify",
-  secondary_route: null,
-  steps: [
-    "Search the exact title, authors, and DOI through Crossref, Google Scholar, a library database, or the journal's official site.",
-    "If no authoritative record appears, treat the citation as unverified rather than asking the same AI to validate it.",
-    "Do not cite the article or repeat its findings unless you can open and inspect the original source.",
-  ],
-  repair_prompt: null,
-  transfer_signal:
-    "Specific titles, statistics, journal details, and DOI-like strings can sound authoritative even when they are inaccurate. Verify AI-generated citations through an independent scholarly source before relying on them.",
-  scope_warning: null,
-};
 
 function Index() {
   const [prompt, setPrompt] = useState("");
