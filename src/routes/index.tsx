@@ -22,17 +22,17 @@ import {
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "AI Repair Commons — Diagnose a puzzling AI answer" },
+      { title: "AI Repair Commons — Decide what to do with a questionable AI answer" },
       {
         name: "description",
         content:
-          "A calm, one-page tool for students to think through what may have gone wrong in an AI response and choose to repair, verify, escalate, or exit.",
+          "A calm, one-page tool that helps learners judge a questionable AI response, choose a recovery route, and build interpretive judgment over time.",
       },
       { property: "og:title", content: "AI Repair Commons" },
       {
         property: "og:description",
         content:
-          "Paste your prompt and the AI's response. Think through what may have gone wrong and pick a next step.",
+          "Paste a questionable AI interaction, receive a bounded recovery decision, and choose whether to repair, verify, escalate, or exit.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -51,8 +51,45 @@ type UiState =
   | "invalid_result";
 
 const INVALID_RESULT_MESSAGE =
-  "We could not produce a reliable result from this interaction. Please clear the session and try again.";
+  "We could not produce a reliable recovery decision from this interaction. Please start over and try again.";
 
+
+const ROUTE_LABELS: Record<
+  Exclude<AnalysisResult["primary_route"], null>,
+  string
+> = {
+  repair: "Repair",
+  verify: "Verify",
+  escalate: "Escalate",
+  exit: "Exit",
+};
+
+const REPAIR_TARGET_LABELS: Record<
+  Exclude<
+    AnalysisResult["primary_category"],
+    "unclear" | "no_clear_failure"
+  >,
+  string
+> = {
+  grounding: "Evidence chain",
+  reasoning: "Reasoning",
+  framing: "Response framing",
+  boundary: "Trust boundary",
+};
+
+function getRouteLabel(route: AnalysisResult["primary_route"]): string | null {
+  return route ? ROUTE_LABELS[route] : null;
+}
+
+function getRepairTargetLabel(
+  category: AnalysisResult["primary_category"],
+): string | null {
+  if (category === "unclear" || category === "no_clear_failure") {
+    return null;
+  }
+
+  return REPAIR_TARGET_LABELS[category];
+}
 
 
 function Index() {
@@ -225,8 +262,8 @@ function Index() {
             AI Repair Commons
           </h1>
           <p className="text-base leading-relaxed text-foreground sm:text-lg">
-            Understand what may have gone wrong—and choose whether to repair,
-            verify, escalate, or exit.
+            Decide what to do with a questionable AI response—and learn what to
+            notice in similar interactions.
           </p>
           <p className="rounded-md border border-border bg-muted/50 px-4 py-3 text-sm leading-relaxed text-muted-foreground">
             This prototype supports learning-related AI interactions. It does
@@ -376,7 +413,7 @@ function Index() {
                 onClick={resetAll}
                 className="min-h-11 sm:w-auto"
               >
-                Clear and delete this session
+                Start over
               </Button>
             </div>
           </section>
@@ -429,9 +466,16 @@ function Index() {
                 <Button
                   type="button"
                   onClick={resetAll}
+                  function reviseInteraction() {
+                    // Invalidate any in-flight submission while preserving the submitted fields.
+                    submissionId.current += 1;
+                    setResult(null);
+                    setCopied(false);
+                    setUiState("input");
+                  }
                   className="min-h-11 sm:w-auto"
                 >
-                  Clear and start again
+                  Revise the interaction
                 </Button>
               </div>
             </section>
@@ -449,36 +493,39 @@ function Index() {
             >
               <div className="space-y-2">
                 <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  Analysis
+                  Recovery decision
                 </p>
                 <h2
                   id="no-failure-heading"
                   className="text-2xl font-semibold tracking-tight text-foreground"
                 >
-                  No clear failure is evident
+                  No repair is currently needed
                 </h2>
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  Based on the submitted interaction, no clear failure is evident.
+                </p>
               </div>
-
-              <ResultBlock title="What may have happened">
+        
+              <ResultBlock title="Best current judgment">
                 {result.assessment}
               </ResultBlock>
-
-              <ResultBlock title="What is still uncertain">
+        
+              <ResultBlock title="What remains uncertain">
                 {result.uncertainty}
               </ResultBlock>
-
+        
               {result.steps.length > 0 && (
-                <ResultBlock title="One thing you could do">
+                <ResultBlock title="Optional check">
                   {result.steps[0]}
                 </ResultBlock>
               )}
-
+        
               {result.transfer_signal && (
                 <ResultBlock title="What to notice next time">
                   {result.transfer_signal}
                 </ResultBlock>
               )}
-
+        
               <div
                 role="group"
                 aria-label="Result actions"
@@ -492,21 +539,15 @@ function Index() {
                 >
                   {copied ? "Result copied" : "Copy result"}
                 </Button>
-                <Button
+        
+                <<Button
                   type="button"
-                  variant="secondary"
-                  onClick={resetAll}
+                  onClick={reviseInteraction}
                   className="min-h-11 sm:w-auto"
                 >
-                  Analyze another interaction
+                  Revise the interaction
                 </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={resetAll}
-                  className="min-h-11 sm:w-auto"
-                >
-                  Clear and delete this session
+                  Start a new interaction
                 </Button>
               </div>
             </section>
@@ -517,92 +558,113 @@ function Index() {
           !result.needs_clarification &&
           result.primary_category !== "unclear" &&
           result.primary_category !== "no_clear_failure" && (
-          <section
-            ref={resultRef}
-            tabIndex={-1}
-            aria-labelledby="result-heading"
-            className="space-y-8 outline-none"
-          >
-
-            <div className="space-y-2">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Analysis
-              </p>
-              <h2
-                id="result-heading"
-                className="text-2xl font-semibold tracking-tight text-foreground"
-              >
-                A tentative reading of this interaction
-              </h2>
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                This is a hypothesis to think with, not a definitive judgment.
-                Verify anything that matters before acting on it.
-              </p>
-            </div>
-
-            <ResultBlock title="What may have happened">
-              {result.assessment}
-            </ResultBlock>
-
-            <ResultBlock title="What is still uncertain">
-              {result.uncertainty}
-            </ResultBlock>
-
-            {result.steps.length > 0 && (
-              <ResultBlock title="What to do now">
-                <ol className="list-decimal space-y-2 pl-5">
-                  {result.steps.map((step, i) => (
-                    <li key={i}>{step}</li>
-                  ))}
-                </ol>
-              </ResultBlock>
-            )}
-
-            {result.repair_prompt && (
-              <ResultBlock title="A better next prompt">
-                <pre className="whitespace-pre-wrap rounded-md border border-border bg-muted/50 p-4 font-sans text-sm leading-relaxed text-foreground">
-                  {result.repair_prompt}
-                </pre>
-              </ResultBlock>
-            )}
-
-            {result.transfer_signal && (
-              <ResultBlock title="What to notice next time">
-                {result.transfer_signal}
-              </ResultBlock>
-            )}
-
-            <div
-              role="group"
-              aria-label="Result actions"
-              className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:flex-wrap sm:items-center"
+            <section
+              ref={resultRef}
+              tabIndex={-1}
+              aria-labelledby="result-heading"
+              className="space-y-8 outline-none"
             >
-              <Button
-                type="button"
-                onClick={handleCopyResult}
-                className="min-h-11 sm:w-auto"
-                aria-live="polite"
+              <div className="space-y-2">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Recovery decision
+                </p>
+        
+                <h2
+                  id="result-heading"
+                  className="text-2xl font-semibold tracking-tight text-foreground"
+                >
+                  A recommended recovery path
+                </h2>
+        
+                <p className="text-sm leading-relaxed text-muted-foreground">
+                  This is the strongest next move supported by the submitted
+                  interaction. The underlying assessment remains bounded by the
+                  information provided.
+                </p>
+              </div>
+        
+              <div className="grid gap-4 rounded-md border border-border bg-muted/40 p-4 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Recommended route
+                  </p>
+                  <p className="text-base font-semibold text-foreground">
+                    {getRouteLabel(result.primary_route)}
+                  </p>
+                </div>
+        
+                <div className="space-y-1">
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Repair target
+                  </p>
+                  <p className="text-base font-semibold text-foreground">
+                    {getRepairTargetLabel(result.primary_category)}
+                  </p>
+                </div>
+              </div>
+        
+              <ResultBlock title="Best current judgment">
+                {result.assessment}
+              </ResultBlock>
+        
+              {result.steps.length > 0 && (
+                <ResultBlock title="Best next move">
+                  <p>{result.steps[0]}</p>
+                </ResultBlock>
+              )}
+        
+              {result.steps.length > 1 && (
+                <ResultBlock title="Follow-through">
+                  <ol className="list-decimal space-y-2 pl-5">
+                    {result.steps.slice(1).map((step, i) => (
+                      <li key={i}>{step}</li>
+                    ))}
+                  </ol>
+                </ResultBlock>
+              )}
+        
+              <ResultBlock title="What remains uncertain">
+                {result.uncertainty}
+              </ResultBlock>
+        
+              {result.repair_prompt && (
+                <ResultBlock title="A better next prompt">
+                  <pre className="whitespace-pre-wrap rounded-md border border-border bg-muted/50 p-4 font-sans text-sm leading-relaxed text-foreground">
+                    {result.repair_prompt}
+                  </pre>
+                </ResultBlock>
+              )}
+        
+              {result.transfer_signal && (
+                <ResultBlock title="What to notice next time">
+                  {result.transfer_signal}
+                </ResultBlock>
+              )}
+        
+              <div
+                role="group"
+                aria-label="Result actions"
+                className="flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:flex-wrap sm:items-center"
               >
-                {copied ? "Result copied" : "Copy result"}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={resetAll}
-                className="min-h-11 sm:w-auto"
-              >
-                Analyze another interaction
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={resetAll}
-                className="min-h-11 sm:w-auto"
-              >
-                Clear and delete this session
-              </Button>
-            </div>
-          </section>
+                <Button
+                  type="button"
+                  onClick={handleCopyResult}
+                  className="min-h-11 sm:w-auto"
+                  aria-live="polite"
+                >
+                  {copied ? "Result copied" : "Copy result"}
+                </Button>
+        
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={resetAll}
+                  className="min-h-11 sm:w-auto"
+                >
+                  Start a new interaction
+                </Button>
+              </div>
+            </section>
           )}
 
       </main>
@@ -715,24 +777,67 @@ function ResultBlock({
 }
 
 function formatResultForClipboard(r: AnalysisResult) {
-  const lines = [
-    "AI Repair Commons — analysis",
-    "",
-    "What may have happened",
-    r.assessment,
-    "",
-    "What is still uncertain",
-    r.uncertainty,
-  ];
-  if (r.steps.length > 0) {
-    lines.push("", "What to do now");
-    r.steps.forEach((s, i) => lines.push(`${i + 1}. ${s}`));
+  if (r.primary_category === "no_clear_failure") {
+    const lines = [
+      "AI Repair Commons — recovery decision",
+      "",
+      "Decision",
+      "No repair is currently needed",
+      "",
+      "Best current judgment",
+      r.assessment,
+      "",
+      "What remains uncertain",
+      r.uncertainty,
+    ];
+
+    if (r.steps.length > 0) {
+      lines.push("", "Optional check", r.steps[0]);
+    }
+
+    if (r.transfer_signal) {
+      lines.push("", "What to notice next time", r.transfer_signal);
+    }
+
+    return lines.join("\n");
   }
+
+  const routeLabel = getRouteLabel(r.primary_route);
+  const repairTarget = getRepairTargetLabel(r.primary_category);
+
+  const lines = [
+    "AI Repair Commons — recovery decision",
+    "",
+    "Recommended route",
+    routeLabel ?? "Unavailable",
+    "",
+    "Repair target",
+    repairTarget ?? "Unavailable",
+    "",
+    "Best current judgment",
+    r.assessment,
+  ];
+
+  if (r.steps.length > 0) {
+    lines.push("", "Best next move", r.steps[0]);
+  }
+
+  if (r.steps.length > 1) {
+    lines.push("", "Follow-through");
+    r.steps.slice(1).forEach((step, index) => {
+      lines.push(`${index + 1}. ${step}`);
+    });
+  }
+
+  lines.push("", "What remains uncertain", r.uncertainty);
+
   if (r.repair_prompt) {
     lines.push("", "A better next prompt", r.repair_prompt);
   }
+
   if (r.transfer_signal) {
     lines.push("", "What to notice next time", r.transfer_signal);
   }
+
   return lines.join("\n");
 }
