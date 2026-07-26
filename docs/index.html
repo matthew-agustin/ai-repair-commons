@@ -1415,13 +1415,14 @@ p { color:var(--muted); }
         <h1>Know what to do when an AI interaction goes wrong.</h1>
   
         <p class="lead">
-          AI Repair Commons helps students and educators understand a possibly
-          unreliable AI response and choose a safer next step: repair, verify,
-          escalate, or exit.
+          AI Repair Commons helps learners decide what to do with a questionable AI
+          response—and build the judgment to handle similar interactions more
+          independently over time.
         </p>
   
         <p class="credibility-line">
-          It does not assume that another prompt is always the answer.
+          Identify the likely problem, understand what is at stake, and choose whether
+          to repair, verify, escalate, or exit.
         </p>
   
         <div class="evidence-strip" aria-label="AI Repair Commons recovery routes">
@@ -1520,29 +1521,30 @@ p { color:var(--muted); }
   
       <div class="orientation-panel content-column" aria-label="How AI Repair Commons works">
         <article class="orientation-item">
-          <p class="orientation-label">01 · Provide the interaction</p>
-          <h3>Paste the original request and AI response.</h3>
+          <p class="orientation-label">01 · Surface the concern</p>
+          <h3>Share the interaction and what made you question it.</h3>
           <p>
-            Add what concerned you when useful. The MVP does not require an account
-            or a long incident report.
+            Paste the original request and AI response, then add what felt unreliable,
+            unclear, or difficult to trust.
           </p>
         </article>
   
         <article class="orientation-item">
-          <p class="orientation-label">02 · Interpret the breakdown</p>
-          <h3>Receive a bounded assessment.</h3>
+          <p class="orientation-label">02 · Clarify the breakdown</p>
+          <h3>Identify the likely problem and why it matters.</h3>
           <p>
-            The tool identifies the most plausible failure pattern, explains what
-            remains uncertain, and avoids claiming more than the interaction supports.
+            The tool distinguishes among evidence, reasoning, framing, and system-boundary
+            problems while stating what the interaction does and does not support.
           </p>
         </article>
   
         <article class="orientation-item">
           <p class="orientation-label">03 · Choose a recovery route</p>
-          <h3>Take one clearer next step.</h3>
+          <h3>Take one proportionate next step.</h3>
           <p>
-            The result recommends Repair, Verify, Escalate, or Exit and provides one
-            transferable signal to notice in future AI interactions.
+            Decide whether to repair the response, verify it independently, involve
+            accountable human judgment, or stop relying on it—and learn what signal
+            to notice next time.
           </p>
         </article>
       </div>
@@ -1550,6 +1552,69 @@ p { color:var(--muted); }
       <p class="section-note content-column">
         The first version is designed for students and educators working through
         ordinary learning-related AI interactions.
+      </p>
+    </div>
+  </section>
+
+  <section class="section" id="what-repair-means">
+    <div class="container">
+      <div class="section-head narrow-head">
+        <div>
+          <div class="eyebrow">What is being repaired?</div>
+          <h2>Not every case requires repairing the AI answer itself.</h2>
+        </div>
+  
+        <p>
+          The repair target depends on where trust broke down and what the user
+          needs before acting.
+        </p>
+      </div>
+  
+      <div
+        class="breakdown-grid content-column"
+        aria-label="Possible repair targets"
+      >
+        <article class="breakdown-card">
+          <p class="breakdown-label">01 · The response</p>
+          <h3>Revise what can reasonably be improved.</h3>
+          <p>
+            Repair a claim, explanation, calculation, or framing when a stronger
+            response can still resolve the problem.
+          </p>
+        </article>
+  
+        <article class="breakdown-card">
+          <p class="breakdown-label">02 · The evidence chain</p>
+          <h3>Verify what the response relies on.</h3>
+          <p>
+            Check sources, quotations, statistics, or factual claims before using
+            them in learning or decision-making.
+          </p>
+        </article>
+  
+        <article class="breakdown-card">
+          <p class="breakdown-label">03 · The interaction</p>
+          <h3>Clarify the request or missing context.</h3>
+          <p>
+            Revise the prompt when ambiguity, omitted information, or a mismatch
+            between the request and response is the main obstacle.
+          </p>
+        </article>
+  
+        <article class="breakdown-card">
+          <p class="breakdown-label">04 · The trust decision</p>
+          <h3>Restore, narrow, suspend, or withdraw trust.</h3>
+          <p>
+            Decide whether the response can be used, needs independent checking,
+            requires human judgment, or should be left behind.
+          </p>
+        </article>
+      </div>
+      
+      <p class="section-note content-column">
+        Repairing trust does not mean restoring confidence automatically. It means
+        deciding what can still be trusted, what needs verification, what should be
+        revised, and when reliance should stop.
       </p>
     </div>
   </section>
@@ -1638,9 +1703,8 @@ p { color:var(--muted); }
           <p class="route-label">Repair</p>
           <h3>Improve the interaction.</h3>
           <p>
-            Use another bounded attempt when the issue can likely be corrected
-            through clearer reasoning, a revised framing, better evidence use,
-            or a more precise response.
+            Revise the response or interaction when another bounded attempt can
+            reasonably correct the problem.
           </p>
         </article>
   
@@ -1819,7 +1883,7 @@ p { color:var(--muted); }
             <article class="responsibility-item">
               <h4>Validated output</h4>
               <p>
-                Live model results will be checked against a defined structure and
+                Live model results are checked against a defined structure and
                 consistency rules before they are displayed.
               </p>
             </article>
@@ -1834,8 +1898,8 @@ p { color:var(--muted); }
             <li>Core single-page interaction flow built</li>
             <li>Input validation and initial scope screening implemented</li>
             <li>Structured recovery model and test-case bank defined</li>
-            <li>Secure live-model integration in progress</li>
-            <li>Behavioral testing and user validation not yet complete</li>
+            <li>Secure live-model integration implemented</li>
+            <li>Initial behavioral testing underway</li>
             <li>Public beta not yet open</li>
           </ul>
   
@@ -1856,13 +1920,13 @@ p { color:var(--muted); }
       <div class="section-head narrow-head">
         <div>
           <div class="eyebrow">From individual recovery to shared learning</div>
-          <h2>The first goal is one safer next step. The longer-term possibility is a stronger culture of repair.</h2>
+          <h2>From guided recovery to independent interpretive judgment.</h2>
         </div>
   
         <p>
-          AI Repair Commons begins with one person trying to understand one
-          unreliable interaction. Over time, the same recovery logic could support
-          broader learning about how AI systems repeatedly fail users in practice.
+          Each result is intended to resolve a present uncertainty while exposing the
+          signal and recovery principle behind the decision. Over time, those patterns
+          can become part of the learner’s own judgment.
         </p>
       </div>
   
@@ -1871,10 +1935,11 @@ p { color:var(--muted); }
           <p class="vision-label">Why “Commons”</p>
           <h3>Recovery can become a shared public-interest capacity.</h3>
           <p>
-            The MVP is intentionally focused on immediate individual use. A future
-            version could help people build repair literacy and, with explicit
-            consent and privacy-preserving design, contribute structured evidence
-            about recurring breakdowns.
+            The MVP begins with immediate individual recovery. Success means more than
+            resolving one interaction: it means helping users recognize recurring
+            failure patterns and choose proportionate repair moves more independently
+            over time. With explicit consent and privacy-preserving design, future
+            versions could also contribute structured evidence about recurring breakdowns.
           </p>
         </article>
   
@@ -1892,9 +1957,8 @@ p { color:var(--muted); }
             <p class="vision-number">02</p>
             <h3>Repair literacy</h3>
             <p>
-              Build the capacity to recognize unreliable evidence, flawed
-              reasoning, distorted framing, and system overreach in future
-              interactions.
+              Build the capacity to recognize recurring failure signals, choose a
+              proportionate recovery move, and know when further prompting is no longer enough.
             </p>
           </article>
   
@@ -1951,12 +2015,10 @@ p { color:var(--muted); }
   
       <div class="closing-panel content-column">
         <div>
-          <p class="eyebrow">Current stage</p>
-          <h2>The next test is whether recovery guidance changes what people do.</h2>
+          <h2>Help test whether recovery guidance changes what people do.</h2>
           <p>
-            The immediate priority is to learn whether students and educators
-            understand the recovery routes, find the guidance useful, and make
-            safer decisions after an unreliable AI interaction.
+            The next step is to learn whether users leave with a clearer decision, a more
+            proportionate recovery move, and a pattern they can recognize again.
           </p>
         </div>
   
