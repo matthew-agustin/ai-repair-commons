@@ -34,6 +34,23 @@ export type AnalysisResult = {
   scope_warning: string | null;
 };
 
+/** The exact key set a result object may contain. */
+export const ALLOWED_KEYS = [
+  "needs_clarification",
+  "clarifying_question",
+  "primary_category",
+  "secondary_category",
+  "assessment",
+  "confidence",
+  "uncertainty",
+  "primary_route",
+  "secondary_route",
+  "steps",
+  "repair_prompt",
+  "transfer_signal",
+  "scope_warning",
+] as const;
+
 export type ValidationOk = { ok: true; value: AnalysisResult };
 export type ValidationErr = { ok: false; errors: string[] };
 export type ValidationOutcome = ValidationOk | ValidationErr;
