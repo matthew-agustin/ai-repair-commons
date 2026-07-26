@@ -34,6 +34,23 @@ export type AnalysisResult = {
   scope_warning: string | null;
 };
 
+/** The exact key set a result object may contain. */
+export const ALLOWED_KEYS = [
+  "needs_clarification",
+  "clarifying_question",
+  "primary_category",
+  "secondary_category",
+  "assessment",
+  "confidence",
+  "uncertainty",
+  "primary_route",
+  "secondary_route",
+  "steps",
+  "repair_prompt",
+  "transfer_signal",
+  "scope_warning",
+] as const;
+
 export type ValidationOk = { ok: true; value: AnalysisResult };
 export type ValidationErr = { ok: false; errors: string[] };
 export type ValidationOutcome = ValidationOk | ValidationErr;
@@ -55,10 +72,18 @@ export function validateAnalysisResult(input: unknown): ValidationOutcome {
   const errors: string[] = [];
   const push = (m: string) => errors.push(m);
 
-  if (input === null || typeof input !== "object") {
+  if (input === null || typeof input !== "object" || Array.isArray(input)) {
     return { ok: false, errors: ["Result is not an object."] };
   }
   const r = input as Record<string, unknown>;
+
+  // Reject any key outside the contract. Unknown keys mean the producer is not
+  // speaking this contract, so the result is not trustworthy.
+  for (const key of Object.keys(r)) {
+    if (!(ALLOWED_KEYS as readonly string[]).includes(key))
+      push(`Unexpected key "${key}".`);
+  }
+  if (errors.length > 0) return { ok: false, errors };
 
   // Presence + shape of every field.
   if (typeof r.needs_clarification !== "boolean")
