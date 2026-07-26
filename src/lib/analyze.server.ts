@@ -107,7 +107,20 @@ The JSON object must have exactly these keys:
 Hard contract rules:
 - If needs_clarification is true: primary_category must be "unclear", clarifying_question must be a non-empty single question, and secondary_category, primary_route, secondary_route, repair_prompt and transfer_signal must be null, and steps must be [].
 - primary_category "unclear" requires needs_clarification true.
-- If primary_category is "no_clear_failure": needs_clarification false, primary_route and secondary_route null, repair_prompt null, secondary_category null, at most 1 step.
+- If primary_category is "no_clear_failure":
+  - needs_clarification must be false.
+  - clarifying_question must be null.
+  - primary_category must be "no_clear_failure".
+  - secondary_category must be null.
+  - primary_route must be null.
+  - secondary_route must be null.
+  - repair_prompt must be null.
+  - scope_warning must be null.
+  - steps must be [] or contain exactly one optional, non-essential check.
+  - transfer_signal may be null or a non-empty string.
+  - assessment must say plainly that no clear failure is evident and no repair is currently needed.
+  - uncertainty must state only what cannot be assessed without the underlying study or additional context.
+  - Do not invent a recovery route, repair target, or corrective prompt for this state.
 - For "grounding", "reasoning", "framing", "boundary": needs_clarification false, a non-null primary_route, and between 1 and 3 steps.
 - repair_prompt must be a non-empty string only when primary_route is "repair"; otherwise null.
 - secondary_route must not equal primary_route.
@@ -128,10 +141,12 @@ Decision-quality rules:
 - Do not say that a source "cannot be located", "does not exist", or is absent from databases, indexes, journals, or publisher records unless that fact is directly established within the submitted interaction.
 - Prefer wording such as "the source was not found in the searches described", "based on the user's reported search attempts", or "the citation remains unverified".
 - Explain the practical consequence of the issue for how the response may be used.
-- Identify the repair target inside assessment: the response, evidence chain, reasoning, framing, interaction, trust decision, or system boundary.
-- The first step must be the single best next move.
+- For normal recovery results, make the practical repair object clear in assessment without repeating the interface label verbatim.
+- This repair-target requirement does not apply to "no_clear_failure"; that state must say that no repair is currently needed.
+- For normal recovery results, the first step must be the single best next move.
 - Later steps may provide necessary follow-through only.
 - Where relevant, the final step should state when to stop, remove the claim, verify independently, or involve human judgment.
+- For "no_clear_failure", do not force a next move. Use zero steps unless one genuinely useful optional check remains.
 - If a repair attempt fails to correct the identified problem, state a concrete fallback: stop relying on the response and consult an appropriate course text, instructor, verified reference, or other accountable source.
 - Do not give vague fallback advice such as "consult a standard reference" when a more specific source type can be named.
 - Do not provide multiple equally weighted options when one route is clearly preferable.
@@ -177,13 +192,18 @@ Writing requirements:
 - Make the practical repair object clear in assessment, but do not repeat the interface’s repair-target label verbatim.
 - Keep assessment focused and practically useful.
 - Keep steps concrete and ordered.
-- The user should leave knowing:
+- For normal recovery results, the user should leave knowing:
   1. the best current judgment,
   2. what is being repaired,
   3. the recommended route,
   4. the first action to take,
   5. what remains uncertain,
-  6. what signal to notice next time.`;
+  6. what signal to notice next time.
+- For "no_clear_failure", the user should leave knowing:
+  1. that no repair is currently needed,
+  2. why the response appears proportionate,
+  3. what remains uncertain,
+  4. one optional check only if it would materially help.
 
 function buildUserMessage(request: AnalyzeRequest): string {
   // One JSON-serialized data object; no user-controlled delimiters.
