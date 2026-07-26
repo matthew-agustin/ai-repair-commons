@@ -65,13 +65,10 @@ function Index() {
   const resultRef = useRef<HTMLDivElement>(null);
   const scopeRef = useRef<HTMLDivElement>(null);
   const invalidRef = useRef<HTMLDivElement>(null);
-  const processingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Monotonic submission id: only the newest submission may update state.
+  const submissionId = useRef(0);
 
-  useEffect(() => {
-    return () => {
-      if (processingTimer.current) clearTimeout(processingTimer.current);
-    };
-  }, []);
+  const analyze = useServerFn(analyzeInteraction);
 
   const promptTrimmedLen = prompt.trim().length;
   const responseTrimmedLen = response.trim().length;
@@ -112,48 +109,88 @@ function Index() {
       invalidRef.current.focus();
   }, [uiState]);
 
-  function handleAnalyze(e: React.FormEvent) {
+  async function handleAnalyze(e: React.FormEvent) {
     e.preventDefault();
     setPromptTouched(true);
     setResponseTouched(true);
     if (!canAnalyze) return;
     if (isOutOfScope(prompt, response, concern)) {
+      submissionId.current += 1;
       setResult(null);
       setUiState("scope_blocked");
       return;
     }
-    setUiState("processing");
+
+    const requestId = ++submissionId.current;
+    const isCurrent = () => submissionId.current === requestId;
+
     setResult(null);
-    processingTimer.current = setTimeout(() => {
-      const outcome = validateAnalysisResult(DEMO_RESULT_RAW);
+    setCopied(false);
+    setUiState("processing");
+
+    const trimmedConcern = concern.trim();
+
+    try {
+      const outcome = await analyze({
+        data: {
+          prompt: prompt.trim(),
+          response: response.trim(),
+          concern: trimmedConcern.length > 0 ? trimmedConcern : null,
+        },
+      });
+      if (!isCurrent()) return;
+
       if (!outcome.ok) {
-        // Developer-only diagnostics; never surfaced to the user.
+        if (import.meta.env.DEV) {
+          // eslint-disable-next-line no-console
+          console.warn("[AI Repair Commons] Analysis failed:", outcome.code);
+        }
+        setResult(null);
+        setUiState(outcome.code === "out_of_scope" ? "scope_blocked" : "invalid_result");
+        return;
+      }
+
+      // The server response is untrusted at this boundary: revalidate.
+      const validation = validateAnalysisResult(outcome.result);
+      if (!validation.ok) {
         if (import.meta.env.DEV) {
           // eslint-disable-next-line no-console
           console.warn(
             "[AI Repair Commons] Analysis result failed validation:",
-            outcome.errors,
+            validation.errors,
           );
         }
         setResult(null);
         setUiState("invalid_result");
         return;
       }
-      setResult(outcome.value);
+
+      setResult(validation.value);
       setUiState("result");
-    }, 900);
+    } catch {
+      if (!isCurrent()) return;
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        console.warn("[AI Repair Commons] Analysis request failed to complete.");
+      }
+      setResult(null);
+      setUiState("invalid_result");
+    }
   }
 
   function resetAll() {
-    if (processingTimer.current) clearTimeout(processingTimer.current);
+    // Invalidate any in-flight submission so a late response cannot land.
+    submissionId.current += 1;
     setPrompt("");
     setResponse("");
     setConcern("");
     setResult(null);
+    setCopied(false);
     setPromptTouched(false);
     setResponseTouched(false);
     setUiState("input");
   }
+
 
   async function handleCopyResult() {
     if (!result) return;
