@@ -202,7 +202,7 @@ export async function runAnalysis(input: unknown): Promise<AnalyzeOutcome> {
     return { ok: false, code: "empty_response" };
   }
 
-  const parsed = extractJsonObject(text);
+  const parsed = parseExactJsonObject(text);
   if (parsed === null) {
     console.error("[analyze] malformed_json");
     return { ok: false, code: "malformed_json" };
